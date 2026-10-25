@@ -10,6 +10,7 @@ struct ServerConfiguration: Codable {
     var connectionKind: String?
     var relayPort: Int?
     var relayMatchDomains: [String]?
+    var relayTransport: String?
 
     var isRelay: Bool { connectionKind?.lowercased() == "relay" }
     var hasLimitedRelayDomains: Bool { isRelay && !(relayMatchDomains ?? []).isEmpty }
@@ -22,11 +23,16 @@ struct ServerConfiguration: Codable {
             expectedExitAddress: expectedExitAddress?.trimmingCharacters(in: .whitespacesAndNewlines),
             connectionKind: connectionKind?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
             relayPort: relayPort,
-            relayMatchDomains: relayMatchDomains?.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+            relayMatchDomains: relayMatchDomains?.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() },
+            relayTransport: relayTransport?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
         guard !c.address.isEmpty, !c.username.isEmpty else { throw PrototypeError.invalidConfiguration }
         if c.connectionKind?.isEmpty == true || c.connectionKind == "ikev2" { c.connectionKind = nil }
         guard c.connectionKind == nil || c.connectionKind == "relay" else { throw PrototypeError.invalidConfiguration }
         if c.isRelay {
+            if c.relayTransport?.isEmpty == true || c.relayTransport == "http2" { c.relayTransport = nil }
+            guard c.relayTransport == nil || c.relayTransport == "http3" else {
+                throw PrototypeError.invalidRelayConfiguration
+            }
             c.address = c.address.lowercased()
             if c.address.hasSuffix(".") { c.address.removeLast() }
             c.relayMatchDomains = c.relayMatchDomains?.map { value in

@@ -34,13 +34,14 @@ enum VPNProfile {
     private static func makeRelay(configuration c: ServerConfiguration, password: String) throws -> Data {
         guard let port = c.relayPort else { throw PrototypeError.invalidRelayConfiguration }
         let credential = Data("\(c.username):\(password)".utf8).base64EncodedString()
+        let relayURLKey = c.relayTransport == "http3" ? "HTTP3RelayURL" : "HTTP2RelayURL"
         var relay: [String: Any] = [
             "PayloadType": "com.apple.relay.managed", "PayloadVersion": 1,
             "PayloadIdentifier": "org.maykopvpn.https-relay.relay",
             "PayloadUUID": UUID().uuidString.uppercased(),
             "PayloadDisplayName": "MAYKOP HTTPS Test",
             "Relays": [[
-                "HTTP2RelayURL": "https://\(c.address):\(port)/.well-known/masque/udp/{target_host}/{target_port}/",
+                relayURLKey: "https://\(c.address):\(port)/.well-known/masque/udp/{target_host}/{target_port}/",
                 "AdditionalHTTPHeaderFields": ["Proxy-Authorization": "Basic \(credential)"]
             ]],
             "UIToggleEnabled": true
