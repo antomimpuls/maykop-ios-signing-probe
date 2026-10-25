@@ -78,7 +78,7 @@ final class TestModel: ObservableObject {
             try PasswordStore.write(password)
             UserDefaults.standard.set(try JSONEncoder().encode(c), forKey: "serverConfiguration")
             configuration = c
-            message = "Настройки сохранены в приложении. Уже установленный системный VPN-профиль не изменён; для новых настроек подготовьте и установите новый профиль."
+            message = "Настройки сохранены в приложении. Уже установленный системный профиль подключения не изменён; для новых настроек подготовьте и установите новый профиль."
         } catch { message = error.localizedDescription }
     }
 
@@ -96,7 +96,7 @@ final class TestModel: ObservableObject {
             try FileManager.default.removeItem(at: file)
             configuration = c
             password = imported.password
-            message = "Настройки получены по USB, файл импорта удалён. Уже установленный системный VPN-профиль не изменён; для новых настроек подготовьте и установите новый профиль."
+            message = "Настройки получены по USB, файл импорта удалён. Уже установленный системный профиль подключения не изменён; для новых настроек подготовьте и установите новый профиль."
         } catch { message = error.localizedDescription }
     }
 
@@ -119,8 +119,8 @@ final class TestModel: ObservableObject {
         guard let url = URL(string: "App-Prefs:root=General&path=VPN") else { return }
         UIApplication.shared.open(url, options: [:]) { success in
             Task { @MainActor in
-                self.message = success ? "В настройках выберите MAYKOP iOS Test и включите VPN." :
-                    "Откройте Настройки → Основные → VPN и управление устройством → VPN."
+                self.message = success ? "В настройках откройте VPN и управление устройством, затем включите установленный профиль MAYKOP." :
+                    "Откройте Настройки → Основные → VPN и управление устройством и выберите установленный профиль MAYKOP."
             }
         }
     }
@@ -186,26 +186,38 @@ struct MainView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Системный VPN") {
+                Section(model.configuration.isRelay ? "Защищённое HTTPS-подключение" : "Системный VPN") {
                     Text("MAYKOP VPN").font(.title2.bold())
-                    Text("Тест IKEv2").foregroundStyle(.secondary)
-                    Text("VPN включается в настройках iPhone. Приложение не читает системный статус.")
-                    Button("Открыть VPN в настройках") { model.openSettings() }
+                    Text(model.configuration.isRelay ? "Тест системного HTTPS Relay" : "Тест IKEv2").foregroundStyle(.secondary)
+                    Text(model.configuration.isRelay ?
+                        "Подключение включается в настройках iPhone. Приложение не читает его системный статус." :
+                        "VPN включается в настройках iPhone. Приложение не читает системный статус.")
+                    if model.configuration.hasLimitedRelayDomains {
+                        Text("Это ограниченный тест только для заданных областей, а не VPN для всего телефона.").font(.footnote)
+                    }
+                    Button("Открыть настройки профилей") { model.openSettings() }
                     Button(model.checking ? "Проверяем…" : "Проверить трафик") { Task { await model.checkTraffic() } }
                         .disabled(model.checking)
                     Text(model.probe).font(.footnote)
                 }
-                Section("Сервер · IKEv2 с логином и паролем") {
-                    TextField("Адрес сервера", text: $model.configuration.address)
-                    TextField("Удалённый ID сертификата", text: $model.configuration.remoteID)
-                    TextField("Локальный ID (по умолчанию — логин)", text: $model.configuration.localID)
+                Section(model.configuration.isRelay ? "HTTPS-сервер с логином и паролем" : "Сервер · IKEv2 с логином и паролем") {
+                    TextField(model.configuration.isRelay ? "Имя HTTPS-сервера" : "Адрес сервера", text: $model.configuration.address)
+                    if model.configuration.isRelay {
+                        TextField("HTTPS-порт", text: Binding(
+                            get: { model.configuration.relayPort.map(String.init) ?? "" },
+                            set: { model.configuration.relayPort = Int($0) }))
+                            .keyboardType(.numberPad)
+                    } else {
+                        TextField("Удалённый ID сертификата", text: $model.configuration.remoteID)
+                        TextField("Локальный ID (по умолчанию — логин)", text: $model.configuration.localID)
+                    }
                     TextField("Логин", text: $model.configuration.username)
-                    SecureField("Пароль IKEv2", text: $model.password)
+                    SecureField(model.configuration.isRelay ? "Пароль HTTPS" : "Пароль IKEv2", text: $model.password)
                     Button("Сохранить") { model.save() }
                 }.textInputAutocapitalization(.never).autocorrectionDisabled()
-                Section("Профиль VPN") {
-                    Text("Если профиль MAYKOP iOS Test уже установлен по USB, повторная установка не нужна.")
-                    Text("Изменения, сохранённые в приложении, не меняют установленный системный VPN-профиль. Чтобы применить новые настройки, подготовьте и установите новый профиль.").font(.footnote)
+                Section("Системный профиль") {
+                    Text(model.configuration.isRelay ? "Если MAYKOP HTTPS Test уже установлен по USB, повторная установка не нужна." : "Если MAYKOP iOS Test уже установлен по USB, повторная установка не нужна.")
+                    Text("Изменения, сохранённые в приложении, не меняют установленный системный профиль. Чтобы применить новые настройки, подготовьте и установите новый профиль.").font(.footnote)
                     Button("Подготовить файл профиля") { model.exportProfile() }
                     if model.exportedURL != nil {
                         Button("Передать профиль…") { showShare = true }
