@@ -5,8 +5,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    CURRENT_PROJECT_VERSION: 2
-    MARKETING_VERSION: "0.2"
+    CURRENT_PROJECT_VERSION: 3
+    MARKETING_VERSION: "0.3"
     TARGETED_DEVICE_FAMILY: "1"
 targets:
   MaykopTest:
@@ -21,6 +21,8 @@ targets:
     info:
       path: Generated/Info.plist
       properties:
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleDisplayName: MAYKOP VPN Test
         UILaunchScreen: {}
         UIFileSharingEnabled: true

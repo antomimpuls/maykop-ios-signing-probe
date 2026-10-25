@@ -77,6 +77,7 @@ final class TestModel: ObservableObject {
     }
 
     func checkTraffic() async {
+        guard !checking else { return }
         checking = true
         defer { checking = false }
         do {
@@ -93,6 +94,11 @@ final class TestModel: ObservableObject {
             probe = ip == expected ? "Интернет работает. Выходной IP совпал с сервером. Это проверка маршрута, а не системного статуса VPN." :
                 "Интернет работает. Выходной IP не совпал с указанным адресом сервера. VPN этим не подтверждён."
         } catch { probe = "Тестовый HTTPS-запрос не прошёл. Это не определяет причину и не подтверждает статус VPN." }
+    }
+
+    func checkWhenConfigured() async {
+        guard (try? configuration.validated()) != nil else { return }
+        await checkTraffic()
     }
 }
 
@@ -137,11 +143,15 @@ struct MainView: View {
                 Section { Text(model.message).font(.footnote) }
             }
             .navigationTitle("MAYKOP VPN Test")
+            .task { await model.checkWhenConfigured() }
             .sheet(isPresented: $showShare) {
                 if let url = model.exportedURL { ShareSheet(url: url) }
             }
             .onChange(of: phase) { _, newPhase in
-                if newPhase == .active { model.importUSBConfiguration() }
+                if newPhase == .active {
+                    model.importUSBConfiguration()
+                    Task { await model.checkWhenConfigured() }
+                }
             }
         }
     }
