@@ -1,5 +1,54 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import Network
+
+private struct TrafficReceipt: Encodable {
+    let schema = 1
+    let appVersion: String
+    let build: String
+    let checkedAtUTC: String
+    let witnessCount: Int
+    let witnessResults: [Bool]
+    let expectedExitMatched: Bool
+    let success: Bool
+    let otherExit: Bool
+    let failure: Bool
+}
+
+private enum TrafficProbe {
+    static func normalizedIPAddress(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let address = IPv4Address(trimmed) { return address.description }
+        if let address = IPv6Address(trimmed) { return address.description }
+        return nil
+    }
+
+    static func ipify() async -> String? {
+        await request(URL(string: "https://api.ipify.org?format=json")!) { data in
+            guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+                  let value = object["ip"] else { return nil }
+            return normalizedIPAddress(value)
+        }
+    }
+
+    static func amazon() async -> String? {
+        await request(URL(string: "https://checkip.amazonaws.com")!) { data in
+            guard data.count < 128, let value = String(data: data, encoding: .utf8) else { return nil }
+            return normalizedIPAddress(value)
+        }
+    }
+
+    private static func request(_ url: URL, parse: (Data) -> String?) async -> String? {
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.timeoutInterval = 15
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.invalidateAndCancel() }
+        guard let (data, response) = try? await session.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return parse(data)
+    }
+}
 
 @main
 struct MaykopTestApp: App {
@@ -80,20 +129,47 @@ final class TestModel: ObservableObject {
         guard !checking else { return }
         checking = true
         defer { checking = false }
+        async let first = TrafficProbe.ipify()
+        async let second = TrafficProbe.amazon()
+        let (firstResult, secondResult) = await (first, second)
+        let results = [firstResult, secondResult]
+        let valid = results.map { $0 != nil }
+        let witnessesAgree = results[0] != nil && results[0] == results[1]
+        let configuredExpected = configuration.expectedExitAddress ?? configuration.address
+        let expected = TrafficProbe.normalizedIPAddress(configuredExpected)
+        let matched = witnessesAgree && results[0] == expected
+        let otherExit = witnessesAgree && !matched
+        let failed = !matched && !otherExit
+
+        if matched {
+            probe = "Интернет работает. Выходной IP совпал с ожидаемым. Это проверка маршрута, а не системного статуса VPN."
+        } else if otherExit {
+            probe = "Интернет работает, но выходной IP не совпал с ожидаемым. VPN этим не подтверждён."
+        } else {
+            probe = "Две независимые проверки не дали согласованного результата. Причина и статус VPN не определены."
+        }
+        writeTrafficReceipt(witnessResults: valid, matched: matched, otherExit: otherExit, failure: failed)
+    }
+
+    private func writeTrafficReceipt(witnessResults: [Bool], matched: Bool, otherExit: Bool, failure: Bool) {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let receipt = TrafficReceipt(
+            appVersion: info["CFBundleShortVersionString"] as? String ?? "unknown",
+            build: info["CFBundleVersion"] as? String ?? "unknown",
+            checkedAtUTC: ISO8601DateFormatter().string(from: Date()),
+            witnessCount: witnessResults.count,
+            witnessResults: witnessResults,
+            expectedExitMatched: matched,
+            success: matched,
+            otherExit: otherExit,
+            failure: failure)
+        let file = URL.documentsDirectory.appending(path: "maykop-traffic-check.json")
         do {
-            var request = URLRequest(url: URL(string: "https://api.ipify.org?format=json")!)
-            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-            request.timeoutInterval = 15
-            let session = URLSession(configuration: .ephemeral)
-            defer { session.invalidateAndCancel() }
-            let (data, response) = try await session.data(for: request)
-            guard (response as? HTTPURLResponse)?.statusCode == 200,
-                  let object = try JSONSerialization.jsonObject(with: data) as? [String: String],
-                  let ip = object["ip"], ip.count < 64 else { throw URLError(.badServerResponse) }
-            let expected = configuration.address.trimmingCharacters(in: .whitespacesAndNewlines)
-            probe = ip == expected ? "Интернет работает. Выходной IP совпал с сервером. Это проверка маршрута, а не системного статуса VPN." :
-                "Интернет работает. Выходной IP не совпал с указанным адресом сервера. VPN этим не подтверждён."
-        } catch { probe = "Тестовый HTTPS-запрос не прошёл. Это не определяет причину и не подтверждает статус VPN." }
+            let data = try JSONEncoder().encode(receipt)
+            try data.write(to: file, options: [.atomic, .completeFileProtection])
+        } catch {
+            try? FileManager.default.removeItem(at: file)
+        }
     }
 
     func checkWhenConfigured() async {
