@@ -16,14 +16,14 @@ private struct TrafficReceipt: Encodable {
 }
 
 private enum TrafficProbe {
-    static func normalizedIPAddress(_ value: String) -> String? {
+    static func normalizedIPAddress(_ value: String) -> Data? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let address = IPv4Address(trimmed) { return address.description }
-        if let address = IPv6Address(trimmed) { return address.description }
+        if let address = IPv4Address(trimmed) { return address.rawValue }
+        if let address = IPv6Address(trimmed) { return address.rawValue }
         return nil
     }
 
-    static func ipify() async -> String? {
+    static func ipify() async -> Data? {
         await request(URL(string: "https://api.ipify.org?format=json")!) { data in
             guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: String],
                   let value = object["ip"] else { return nil }
@@ -31,14 +31,14 @@ private enum TrafficProbe {
         }
     }
 
-    static func amazon() async -> String? {
+    static func amazon() async -> Data? {
         await request(URL(string: "https://checkip.amazonaws.com")!) { data in
             guard data.count < 128, let value = String(data: data, encoding: .utf8) else { return nil }
             return normalizedIPAddress(value)
         }
     }
 
-    private static func request(_ url: URL, parse: (Data) -> String?) async -> String? {
+    private static func request(_ url: URL, parse: (Data) -> Data?) async -> Data? {
         var request = URLRequest(url: url)
         request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         request.timeoutInterval = 15
