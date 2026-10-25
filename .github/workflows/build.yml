@@ -1,14 +1,12 @@
-name: Build Maykop signing probe
+name: Build free Maykop iPhone prototype
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   build:
-    # This workflow is for a separate public repository containing ONLY this
-    # credential-free probe. Skip private repositories to avoid billed builds.
     if: github.event.repository.private == false
-    runs-on: macos-15
+    runs-on: macos-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7.0.1
@@ -16,11 +14,11 @@ jobs:
           persist-credentials: false
       - name: Prepare XcodeGen
         run: command -v xcodegen >/dev/null || brew install xcodegen
-      - name: Build probe for re-signing
+      - name: Build unsigned single target app and inspect it
         run: bash scripts/build-unsigned.sh
       - uses: actions/upload-artifact@v7.0.2
         with:
-          name: MaykopSigningProbe
-          path: build/*.ipa
+          name: MaykopTest
+          path: build/*
           if-no-files-found: error
           retention-days: 7
