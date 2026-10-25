@@ -29,7 +29,7 @@ final class TestModel: ObservableObject {
             try PasswordStore.write(password)
             UserDefaults.standard.set(try JSONEncoder().encode(c), forKey: "serverConfiguration")
             configuration = c
-            message = "Настройки сохранены на этом iPhone."
+            message = "Настройки сохранены в приложении. Уже установленный системный VPN-профиль не изменён; для новых настроек подготовьте и установите новый профиль."
         } catch { message = error.localizedDescription }
     }
 
@@ -47,7 +47,7 @@ final class TestModel: ObservableObject {
             try FileManager.default.removeItem(at: file)
             configuration = c
             password = imported.password
-            message = "Тестовые настройки получены по USB; файл импорта удалён."
+            message = "Настройки получены по USB, файл импорта удалён. Уже установленный системный VPN-профиль не изменён; для новых настроек подготовьте и установите новый профиль."
         } catch { message = error.localizedDescription }
     }
 
@@ -122,13 +122,14 @@ struct MainView: View {
                 Section("Сервер · IKEv2 с логином и паролем") {
                     TextField("Адрес сервера", text: $model.configuration.address)
                     TextField("Удалённый ID сертификата", text: $model.configuration.remoteID)
-                    TextField("Локальный ID (необязательно)", text: $model.configuration.localID)
+                    TextField("Локальный ID (по умолчанию — логин)", text: $model.configuration.localID)
                     TextField("Логин", text: $model.configuration.username)
                     SecureField("Пароль IKEv2", text: $model.password)
                     Button("Сохранить") { model.save() }
                 }.textInputAutocapitalization(.never).autocorrectionDisabled()
                 Section("Профиль VPN") {
                     Text("Если профиль MAYKOP iOS Test уже установлен по USB, повторная установка не нужна.")
+                    Text("Изменения, сохранённые в приложении, не меняют установленный системный VPN-профиль. Чтобы применить новые настройки, подготовьте и установите новый профиль.").font(.footnote)
                     Button("Подготовить файл профиля") { model.exportProfile() }
                     if model.exportedURL != nil {
                         Button("Передать профиль…") { showShare = true }

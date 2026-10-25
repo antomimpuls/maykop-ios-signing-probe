@@ -8,13 +8,14 @@ struct ServerConfiguration: Codable {
     var username = ""
 
     func validated() throws -> ServerConfiguration {
-        let c = ServerConfiguration(address: address.trimmingCharacters(in: .whitespacesAndNewlines),
+        var c = ServerConfiguration(address: address.trimmingCharacters(in: .whitespacesAndNewlines),
             remoteID: remoteID.trimmingCharacters(in: .whitespacesAndNewlines),
             localID: localID.trimmingCharacters(in: .whitespacesAndNewlines),
             username: username.trimmingCharacters(in: .whitespacesAndNewlines))
         guard !c.address.isEmpty, !c.remoteID.isEmpty, !c.username.isEmpty,
               !c.address.contains(":"), !c.address.contains("/"),
               !c.address.contains(where: { $0.isWhitespace }) else { throw PrototypeError.invalidConfiguration }
+        if c.localID.isEmpty { c.localID = c.username }
         return c
     }
 }

@@ -6,16 +6,16 @@ enum VPNProfile {
         guard !password.isEmpty else { throw PrototypeError.missingPassword }
         // EAP-only IKEv2: server authenticated by its public CA certificate.
         // No client certificate, Network Extension, MDM, root CA or proxy payload.
-        var ike: [String: Any] = ["RemoteAddress": c.address,
+        let ike: [String: Any] = ["RemoteAddress": c.address,
             "RemoteIdentifier": c.remoteID, "AuthenticationMethod": "None",
             "ExtendedAuthEnabled": 1, "AuthName": c.username, "AuthPassword": password,
             "DeadPeerDetectionRate": "Medium", "DisableMOBIKE": 0,
-            "EnablePFS": 0, "IncludeAllNetworks": 1,
+            "EnablePFS": 0, "IncludeAllNetworks": 0,
+            "LocalIdentifier": c.localID,
             "IKESecurityAssociationParameters": ["EncryptionAlgorithm": "AES-256",
                 "IntegrityAlgorithm": "SHA2-256", "DiffieHellmanGroup": 14, "LifeTimeInMinutes": 1440],
             "ChildSecurityAssociationParameters": ["EncryptionAlgorithm": "AES-256",
                 "IntegrityAlgorithm": "SHA2-256", "DiffieHellmanGroup": 14, "LifeTimeInMinutes": 60]]
-        if !c.localID.isEmpty { ike["LocalIdentifier"] = c.localID }
         let vpn: [String: Any] = ["PayloadType": "com.apple.vpn.managed", "PayloadVersion": 1,
             "PayloadIdentifier": "org.maykopvpn.ikev2-lab.vpn", "PayloadUUID": UUID().uuidString,
             "PayloadDisplayName": "MAYKOP iOS Test", "UserDefinedName": "MAYKOP iOS Test",
